@@ -2,6 +2,21 @@
 
 Streamlit dashboard for visualizing RL training metrics, SNA analysis, and match summaries.
 
+## ⚠️ Current Status
+
+**The dashboard is NOT currently connected to ML-Agents training data.**
+
+Currently, the dashboard shows placeholder data. To connect it to real training data:
+
+1. **For TensorBoard metrics**: The dashboard needs to read from the `results/` directory where ML-Agents saves TensorBoard logs
+2. **For SNA analysis**: The dashboard needs to read event logs from Unity (JSONL/Parquet files)
+3. **For match summaries**: The dashboard needs to connect to the LLM service
+
+**For now, use TensorBoard directly** to view ML-Agents training metrics:
+```powershell
+tensorboard --logdir results
+```
+
 ## Features
 
 - Overview: Training statistics and recent runs
