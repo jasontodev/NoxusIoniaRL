@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  rl-training:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.rl
+    image: noxus-ionia-rl:latest
+    container_name: noxus-ionia-rl
+    volumes:
+      - ../../rl:/app/rl
+      - ../../data:/app/data
+      - ../../runs:/app/runs
+    environment:
+      - S3_BUCKET=${S3_BUCKET:-your-bucket}
+      - S3_PREFIX=${S3_PREFIX:-training-runs}
+      - UNITY_ENV_PATH=${UNITY_ENV_PATH:-}
+    command: python3 rl/scripts/train.py --config rl/src/config/ppo_config.yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  analytics:
+    build:
+      context: ../../services/analytics
+      dockerfile: Dockerfile
+    image: noxus-ionia-analytics:latest
+    container_name: noxus-ionia-analytics
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../../data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+
+  llm:
+    build:
+      context: ../../services/llm
+      dockerfile: Dockerfile
+    image: noxus-ionia-llm:latest
+    container_name: noxus-ionia-llm
+    ports:
+      - "8002:8002"
+    environment:
+      - ENABLE_LLM_COMMS=${ENABLE_LLM_COMMS:-false}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+
+  dashboard:
+    build:
+      context: ../../dash
+      dockerfile: Dockerfile
+    image: noxus-ionia-dashboard:latest
+    container_name: noxus-ionia-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../../data:/app/data
+      - ../../runs:/app/runs
+    environment:
+      - S3_BUCKET=${S3_BUCKET:-}
+      - ANALYTICS_URL=http://analytics:8001
+      - LLM_URL=http://llm:8002
+    depends_on:
+      - analytics
+      - llm
+

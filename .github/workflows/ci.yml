@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          pip install black flake8 pytest pytest-cov
+      
+      - name: Lint RL package
+        run: |
+          cd rl
+          black --check src/ scripts/
+          flake8 src/ scripts/ --max-line-length=120 --ignore=E203,W503
+      
+      - name: Lint services
+        run: |
+          cd services/analytics
+          black --check app/
+          flake8 app/ --max-line-length=120 --ignore=E203,W503
+          
+          cd ../llm
+          black --check app/
+          flake8 app/ --max-line-length=120 --ignore=E203,W503
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install RL dependencies
+        run: |
+          cd rl
+          pip install -r requirements.txt
+          pip install -e .
+      
+      - name: Install service dependencies
+        run: |
+          cd services/analytics
+          pip install -r requirements.txt
+          
+          cd ../llm
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          cd rl
+          pytest tests/ -v --cov=src --cov-report=xml
+          
+          cd ../services/analytics
+          pytest -v || true  # Tests may not exist yet
+          
+          cd ../llm
+          pytest -v || true
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build RL image
+        run: |
+          docker build -f infra/docker/Dockerfile.rl -t noxus-ionia-rl:test .
+      
+      - name: Build analytics image
+        run: |
+          docker build -t noxus-ionia-analytics:test services/analytics
+      
+      - name: Build LLM image
+        run: |
+          docker build -t noxus-ionia-llm:test services/llm
+      
+      - name: Build dashboard image
+        run: |
+          docker build -t noxus-ionia-dashboard:test dash
+

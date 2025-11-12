@@ -1,0 +1,9 @@
+# Root-level dependencies for development
+# See individual package requirements.txt for specific dependencies
+
+# Common utilities
+black>=23.0.0
+flake8>=6.0.0
+pytest>=7.0.0
+pytest-cov>=4.0.0
+

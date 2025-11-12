@@ -1,0 +1,58 @@
+# PPO Configuration for Noxus-Ionia RL Game
+
+trainer_type: ppo
+
+hyperparameters:
+  batch_size: 1024
+  buffer_size: 10240
+  learning_rate: 3.0e-4
+  beta: 5.0e-3  # Entropy coefficient
+  epsilon: 0.2  # Clipping parameter
+  lambd: 0.95   # GAE lambda
+  num_epoch: 3
+  learning_rate_schedule: linear
+
+network_settings:
+  normalize: true
+  hidden_units: 512
+  num_layers: 2
+  vis_encode_type: simple
+
+reward_signals:
+  extrinsic:
+    gamma: 0.99
+    strength: 1.0
+
+# Reward weights (used in custom trainer)
+reward_weights:
+  deposit: 1.0
+  pickup: 0.1
+  elimination: 2.0
+  death: -1.0
+  win: 10.0
+  loss: -5.0
+  idle: -0.01
+  friendly_block: -0.1
+  mana_shaping: 0.05
+
+# Training settings
+max_steps: 10000000
+time_horizon: 64
+summary_freq: 50000
+checkpoint_interval: 100000
+
+# Environment settings
+unity_env_path: null  # Set to Unity executable path or null for editor
+run_id: null  # Auto-generated if null
+seed: 42
+
+# Logging
+tensorboard_dir: runs
+log_dir: logs
+checkpoint_dir: checkpoints
+
+# S3 sync (optional)
+s3_bucket: null
+s3_prefix: null
+sync_interval: 100000  # Steps between S3 syncs
+

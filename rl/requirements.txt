@@ -1,0 +1,27 @@
+# RL Training Package Dependencies
+
+# ML-Agents
+mlagents>=0.30.0
+mlagents-envs>=0.30.0
+
+# PyTorch (adjust based on CUDA version)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Training utilities
+tensorboard>=2.13.0
+optuna>=3.0.0
+wandb>=0.15.0  # Optional: Weights & Biases
+
+# Data processing
+numpy>=1.24.0
+pandas>=2.0.0
+pyyaml>=6.0
+
+# AWS
+boto3>=1.28.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+

@@ -1,0 +1,59 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Build and push Docker images
+        run: |
+          # Build images
+          docker build -f infra/docker/Dockerfile.rl -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-rl:${{ github.ref_name }} .
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-analytics:${{ github.ref_name }} services/analytics
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-llm:${{ github.ref_name }} services/llm
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-dashboard:${{ github.ref_name }} dash
+          
+          # Login to ECR
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+          
+          # Push images
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-rl:${{ github.ref_name }}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-analytics:${{ github.ref_name }}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-llm:${{ github.ref_name }}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/noxus-ionia-dashboard:${{ github.ref_name }}
+      
+      - name: Sync artifacts to S3
+        run: |
+          # Create artifacts directory
+          mkdir -p artifacts
+          
+          # Copy configs and scripts
+          cp -r rl/src/config artifacts/
+          cp -r unity/config artifacts/
+          cp infra/aws/*.sh artifacts/
+          
+          # Sync to S3
+          aws s3 sync artifacts/ s3://${{ secrets.S3_BUCKET }}/releases/${{ github.ref_name }}/artifacts/
+      
+      - name: Create release notes
+        run: |
+          echo "## Release ${{ github.ref_name }}" > release_notes.md
+          echo "" >> release_notes.md
+          echo "Tagged release with Docker images and artifacts." >> release_notes.md
+          
+          # Upload to S3
+          aws s3 cp release_notes.md s3://${{ secrets.S3_BUCKET }}/releases/${{ github.ref_name }}/release_notes.md
+

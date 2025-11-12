@@ -1,0 +1,16 @@
+# LLM Service Dependencies
+
+# FastAPI
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# LLM providers (optional - install as needed)
+openai>=1.0.0  # For OpenAI API
+transformers>=4.35.0  # For HuggingFace models
+torch>=2.0.0  # Required for HuggingFace
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
