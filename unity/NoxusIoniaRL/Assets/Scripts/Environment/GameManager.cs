@@ -14,7 +14,11 @@ namespace NoxusIoniaRL.Environment
         [Header("Game Configuration")]
         public int agentsPerTeam = 2;
         public float episodeMaxTime = 300f; // 5 minutes
-        public int winConditionMana = 20;
+        
+        [Header("Time Control")]
+        [Tooltip("Time scale for episode playback. 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed")]
+        [Range(0.1f, 2.0f)]
+        public float timeScale = 1.0f;
 
         [Header("Team Spawn Points")]
         public Transform[] noxusSpawnPoints;
@@ -25,47 +29,65 @@ namespace NoxusIoniaRL.Environment
         public HealZone ioniaHealZone;
         public GameObject agentPrefabNoxus;
         public GameObject agentPrefabIonia;
-        public GameObject manaItemPrefab;
-        public int manaItemsCount = 15;
+        
+        [Header("Debug")]
+        public bool debugWinConditions = false; // Enable debug logging for win conditions
 
         // Game state
         private float episodeStartTime;
         private bool episodeActive = false;
         private List<BaseAgent> noxusAgents = new List<BaseAgent>();
         private List<BaseAgent> ioniaAgents = new List<BaseAgent>();
-        private List<GameObject> manaItems = new List<GameObject>();
-
-        // Team scores
-        private int noxusManaBanked = 0;
-        private int ioniaManaBanked = 0;
 
         private EventLogger eventLogger;
 
         private void Start()
         {
             eventLogger = FindObjectOfType<EventLogger>();
+            Time.timeScale = timeScale; // Set initial time scale
             StartEpisode();
+        }
+        
+        private void Update()
+        {
+            // Update time scale if changed in inspector during runtime
+            if (Time.timeScale != timeScale)
+            {
+                Time.timeScale = timeScale;
+            }
+            
+            if (!episodeActive) return;
+
+            // Check win conditions
+            CheckWinConditions();
+
+            // Check timeout
+            if (Time.time - episodeStartTime > episodeMaxTime)
+            {
+                EndEpisodeByTimeout();
+            }
         }
 
         public void StartEpisode()
         {
             episodeStartTime = Time.time;
             episodeActive = true;
-            noxusManaBanked = 0;
-            ioniaManaBanked = 0;
 
             // Clear existing agents
             ClearAgents();
 
+            // Reset obstacles to their starting positions
+            ResetObstacles();
+
             // Spawn agents
             SpawnAgents();
-
-            // Spawn mana items
-            SpawnManaItems();
 
             // Reset heal zones
             if (noxusHealZone != null) noxusHealZone.Reset();
             if (ioniaHealZone != null) ioniaHealZone.Reset();
+            
+            // Small delay before allowing win condition checks to prevent immediate wins
+            // This ensures agents are fully spawned and initialized
         }
 
         private void SpawnAgents()
@@ -101,34 +123,6 @@ namespace NoxusIoniaRL.Environment
             }
         }
 
-        private void SpawnManaItems()
-        {
-            // Clear existing mana
-            foreach (var mana in manaItems)
-            {
-                if (mana != null) Destroy(mana);
-            }
-            manaItems.Clear();
-
-            // Spawn mana items randomly in forest area
-            // This assumes a forest area exists - adjust bounds as needed
-            Bounds forestBounds = new Bounds(Vector3.zero, new Vector3(40f, 0f, 40f));
-            
-            for (int i = 0; i < manaItemsCount; i++)
-            {
-                Vector3 randomPos = new Vector3(
-                    Random.Range(forestBounds.min.x, forestBounds.max.x),
-                    0.5f,
-                    Random.Range(forestBounds.min.z, forestBounds.max.z)
-                );
-
-                if (manaItemPrefab != null)
-                {
-                    var manaObj = Instantiate(manaItemPrefab, randomPos, Quaternion.identity);
-                    manaItems.Add(manaObj);
-                }
-            }
-        }
 
         private void ClearAgents()
         {
@@ -144,45 +138,56 @@ namespace NoxusIoniaRL.Environment
             ioniaAgents.Clear();
         }
 
-        private void Update()
+        private void ResetObstacles()
         {
-            if (!episodeActive) return;
-
-            // Check win conditions
-            CheckWinConditions();
-
-            // Check timeout
-            if (Time.time - episodeStartTime > episodeMaxTime)
+            // Find all obstacles in the scene and reset them to starting positions
+            Obstacle[] allObstacles = FindObjectsOfType<Obstacle>();
+            foreach (var obstacle in allObstacles)
             {
-                EndEpisodeByTimeout();
+                if (obstacle != null)
+                {
+                    obstacle.ResetPosition();
+                }
             }
         }
 
-        private void CheckWinConditions()
+
+        public void CheckWinConditions()
         {
-            // Condition 1: Eliminate all enemies
-            bool noxusEliminated = noxusAgents.Count == 0 || noxusAgents.All(a => a == null);
-            bool ioniaEliminated = ioniaAgents.Count == 0 || ioniaAgents.All(a => a == null);
-
-            if (noxusEliminated)
+            // Only check elimination-based wins
+            
+            // Prevent checking win conditions immediately after episode start
+            // Give agents time to spawn and initialize (at least 0.5 seconds)
+            float timeSinceStart = Time.time - episodeStartTime;
+            if (timeSinceStart < 0.5f)
             {
-                EndEpisode(winner: BaseAgent.TeamType.Ionia);
-                return;
+                return; // Too early, don't check win conditions yet
             }
-            if (ioniaEliminated)
+            
+            // Ensure we have agents spawned before checking elimination
+            // If no agents are spawned yet, don't check (shouldn't happen, but safety check)
+            if (noxusAgents.Count == 0 && ioniaAgents.Count == 0)
             {
+                return; // Agents not spawned yet, wait
+            }
+            
+            // Check elimination status - team is eliminated if all agents are dead
+            // Use a helper method to check if agents are dead (since they're not removed from list)
+            bool noxusEliminated = noxusAgents.Count > 0 && noxusAgents.All(a => a == null || IsAgentDead(a));
+            bool ioniaEliminated = ioniaAgents.Count > 0 && ioniaAgents.All(a => a == null || IsAgentDead(a));
+
+            // Win Condition: Elimination
+            // Noxus wins if all Ionia are eliminated
+            if (ioniaEliminated && ioniaAgents.Count > 0)
+            {
+                Debug.Log($"[WIN CONDITION] Noxus wins - All Ionia eliminated!");
                 EndEpisode(winner: BaseAgent.TeamType.Noxus);
                 return;
             }
-
-            // Condition 2: More mana banked
-            if (noxusManaBanked >= winConditionMana && noxusManaBanked > ioniaManaBanked)
+            // Ionia wins if all Noxus are eliminated OR if they survive until timeout
+            if (noxusEliminated && noxusAgents.Count > 0)
             {
-                EndEpisode(winner: BaseAgent.TeamType.Noxus);
-                return;
-            }
-            if (ioniaManaBanked >= winConditionMana && ioniaManaBanked > noxusManaBanked)
-            {
+                Debug.Log($"[WIN CONDITION] Ionia wins - All Noxus eliminated!");
                 EndEpisode(winner: BaseAgent.TeamType.Ionia);
                 return;
             }
@@ -194,6 +199,35 @@ namespace NoxusIoniaRL.Environment
 
             if (winner.HasValue)
             {
+                // Log win/loss to console
+                float duration = Time.time - episodeStartTime;
+                string winReason = "";
+                
+                // Determine win reason
+                bool noxusEliminated = noxusAgents.Count == 0 || noxusAgents.All(a => a == null || IsAgentDead(a));
+                bool ioniaEliminated = ioniaAgents.Count == 0 || ioniaAgents.All(a => a == null || IsAgentDead(a));
+                
+                if (winner.Value == BaseAgent.TeamType.Noxus)
+                {
+                    winReason = "Ionia eliminated";
+                    Debug.Log($"[EPISODE END] ⚔️ NOXUS WINS! ⚔️\n" +
+                             $"Reason: {winReason}\n" +
+                             $"Duration: {duration:F2}s");
+                }
+                else
+                {
+                    // Check if Noxus was eliminated (already checked in outer scope, but need to check again)
+                    bool noxusEliminatedCheck = noxusAgents.Count > 0 && noxusAgents.All(a => a == null || IsAgentDead(a));
+                    if (noxusEliminatedCheck)
+                        winReason = "Noxus eliminated";
+                    else
+                        winReason = "Survived until timeout";
+                    
+                    Debug.Log($"[EPISODE END] ⚔️ IONIA WINS! ⚔️\n" +
+                             $"Reason: {winReason}\n" +
+                             $"Duration: {duration:F2}s");
+                }
+                
                 // Reward winners and losers
                 if (winner.Value == BaseAgent.TeamType.Noxus)
                 {
@@ -221,10 +255,14 @@ namespace NoxusIoniaRL.Environment
                 eventLogger?.LogEvent("episode_end", -1, winner.Value, new Dictionary<string, object>
                 {
                     { "winner", winner.Value.ToString() },
-                    { "noxus_mana", noxusManaBanked },
-                    { "ionia_mana", ioniaManaBanked },
                     { "duration", Time.time - episodeStartTime }
                 });
+            }
+            else
+            {
+                // This should never happen with the new win conditions, but log it if it does
+                Debug.LogWarning($"[EPISODE END] ⚠️ NO WINNER DETERMINED (This shouldn't happen!)\n" +
+                                 $"Duration: {Time.time - episodeStartTime:F2}s");
             }
 
             // Reset after short delay
@@ -233,19 +271,34 @@ namespace NoxusIoniaRL.Environment
 
         private void EndEpisodeByTimeout()
         {
-            // Determine winner by mana count
-            BaseAgent.TeamType? winner = null;
-            if (noxusManaBanked > ioniaManaBanked)
+            // On timeout, determine winner by elimination
+            // Check elimination first
+            bool noxusEliminated = noxusAgents.Count == 0 || noxusAgents.All(a => a == null || IsAgentDead(a));
+            bool ioniaEliminated = ioniaAgents.Count == 0 || ioniaAgents.All(a => a == null || IsAgentDead(a));
+
+            BaseAgent.TeamType winner;
+
+            // Elimination takes priority
+            if (ioniaEliminated)
+            {
                 winner = BaseAgent.TeamType.Noxus;
-            else if (ioniaManaBanked > noxusManaBanked)
+            }
+            else if (noxusEliminated)
+            {
                 winner = BaseAgent.TeamType.Ionia;
+            }
+            else
+            {
+                // If no one is eliminated at timeout, Ionia wins (survival victory)
+                winner = BaseAgent.TeamType.Ionia;
+            }
 
             EndEpisode(winner);
         }
 
         public void OnAgentDeath(BaseAgent.TeamType team)
         {
-            // Remove dead agent from list
+            // Remove null agents from list (agents stay in list but are marked as dead)
             if (team == BaseAgent.TeamType.Noxus)
             {
                 noxusAgents.RemoveAll(a => a == null);
@@ -255,26 +308,14 @@ namespace NoxusIoniaRL.Environment
                 ioniaAgents.RemoveAll(a => a == null);
             }
         }
-
-        public bool DepositMana(BaseAgent.TeamType team, int amount)
+        
+        // Helper method to check if an agent is dead
+        private bool IsAgentDead(BaseAgent agent)
         {
-            if (team == BaseAgent.TeamType.Noxus)
-            {
-                noxusManaBanked += amount;
-                return true;
-            }
-            else if (team == BaseAgent.TeamType.Ionia)
-            {
-                ioniaManaBanked += amount;
-                return true;
-            }
-            return false;
+            if (agent == null) return true;
+            return agent.IsDead();
         }
 
-        public int GetTeamManaBanked(BaseAgent.TeamType team)
-        {
-            return team == BaseAgent.TeamType.Noxus ? noxusManaBanked : ioniaManaBanked;
-        }
 
         public float GetTimeRemaining()
         {
@@ -309,21 +350,6 @@ namespace NoxusIoniaRL.Environment
             }
         }
 
-        public void DropMana(Vector3 position, int amount)
-        {
-            // Spawn dropped mana items
-            for (int i = 0; i < amount; i++)
-            {
-                Vector3 offset = Random.insideUnitCircle * 2f;
-                Vector3 dropPos = position + new Vector3(offset.x, 0.5f, offset.y);
-                
-                if (manaItemPrefab != null)
-                {
-                    var manaObj = Instantiate(manaItemPrefab, dropPos, Quaternion.identity);
-                    manaItems.Add(manaObj);
-                }
-            }
-        }
     }
 }
 

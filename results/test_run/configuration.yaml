@@ -110,7 +110,7 @@ environment_parameters:
     - value:
         sampler_type: uniform
         sampler_parameters:
-          seed: 9408
+          seed: 3713
           min_value: 2.0
           max_value: 4.0
       name: agents_per_team

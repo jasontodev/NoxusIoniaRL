@@ -77,11 +77,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_BrainParameters:
-    VectorObservationSize: 48
+    VectorObservationSize: 33
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 3
-      BranchSizes: 0100000001000000
+      BranchSizes: 0600000001000000
     VectorActionSize: 
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
@@ -118,18 +118,17 @@ MonoBehaviour:
   attackRange: 3
   attackCooldown: 1
   maxHealth: 100
-  maxManaCarried: 3
+  showHealthBar: 1
+  acceleration: 10
+  deceleration: 15
   kNearestEntities: 5
   observationRadius: 20
-  rewardDeposit: 1
-  rewardPickup: 0.1
   rewardElimination: 2
   rewardDeath: -1
   rewardWin: 10
   rewardLoss: -5
   rewardIdle: -0.01
   rewardFriendlyBlock: -0.1
-  rewardManaShaping: 0.05
 --- !u!114 &1756114855772771372
 MonoBehaviour:
   m_ObjectHideFlags: 0

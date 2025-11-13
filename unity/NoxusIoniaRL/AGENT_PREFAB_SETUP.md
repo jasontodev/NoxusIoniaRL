@@ -68,7 +68,7 @@ Select the root agent GameObject and add these components:
 - **Reward Loss**: -5.0
 - **Reward Idle**: -0.01
 - **Reward Friendly Block**: -0.1
-- **Reward Mana Shaping**: 0.05
+- **Reward Mana Shaping**: 0.05 (Note: Currently disabled - agents learn through win/loss only)
 
 #### C. Behavior Parameters (ML-Agents)
 This is the critical ML-Agents component:
@@ -94,7 +94,7 @@ This is the critical ML-Agents component:
   - [1]: Move Z (-1 to 1)
   - [2]: Rotate (-1 to 1)
 - **Discrete Actions**: 2 branches
-  - Branch 0: 5 actions (0=none, 1=interact, 2=attack, 3=defend, 4=signal)
+  - Branch 0: 6 actions (0=none, 1=interact, 2=attack, 3=defend, 4=signal, 5=drop)
   - Branch 1: 5 actions (intent codes for signal)
 
 **Model**: Leave empty (will be assigned during training)
